@@ -218,53 +218,65 @@ let energyData = [];
 const avgElectricity = 50; // 每月平均用电量
 const avgWater = 8;       // 每月平均用水量
 
-// ========== 新增AI功能：能耗异常检测 ==========
+// ========== AI功能：能耗异常检测 ==========
 function aiDetectAbnormal(dormData) {
-    // 至少有2条数据才做AI分析（避免单条数据无意义）
     if (energyData.length < 2) {
         return "✅ 数据量不足，暂未启动AI异常检测（需录入≥2个宿舍数据）";
     }
 
-    // AI步骤1：计算所有宿舍用电量的均值和标准差（统计学异常检测）
     let totalElectricity = 0;
     energyData.forEach(item => totalElectricity += item.electricity);
     const avg = totalElectricity / energyData.length;
 
-    // AI步骤2：计算标准差（衡量数据离散程度）
     let variance = 0;
     energyData.forEach(item => variance += Math.pow(item.electricity - avg, 2));
     const std = Math.sqrt(variance / energyData.length);
 
-    // AI步骤3：判定异常（＞均值+1.5倍标准差=异常浪费）
     if (dormData.electricity > avg + 1.5 * std) {
         return `⚠️ AI检测到【${dormData.dormitory}】用电量异常！
-        该宿舍用电量（${dormData.electricity}度）远超同楼栋90%宿舍，
-        疑似忘关空调/大功率设备，建议立即核查！`;
+该宿舍用电量（${dormData.electricity}度）远超同楼栋90%宿舍，
+疑似忘关空调/大功率设备，建议立即核查！`;
     } else {
         return `✅ AI检测：【${dormData.dormitory}】用电量正常（均值：${avg.toFixed(1)}度）`;
     }
 }
 
-// ========== 新增AI功能：个性化节能建议 ==========
+// ========== 优化后：差异化AI节能建议 ==========
 function aiGenerateAdvice(dormData) {
     let advice = "";
-    // AI根据季节+能耗生成个性化建议
     const month = parseInt(dormData.month);
-    
-    // 夏季（5-9月）用电高→空调节能建议
-    if (dormData.electricity > avgElectricity && month >= 5 && month <= 9) {
-        advice += "1. 夏季空调设置26℃，每天可节电2度；<br>";
-        advice += "2. 离开宿舍10分钟以上关闭空调，避免空耗；<br>";
+    const elecRatio = dormData.electricity / avgElectricity; // 用电倍数
+    const waterRatio = dormData.water / avgWater;             // 用水倍数
+
+    // 1. 用电分级建议
+    if (elecRatio > 2) {
+        advice += "⚠️ 用电量远超平均水平，疑似存在大功率电器长时间开启（如电暖器、电热毯），建议立即排查！<br>";
+    } else if (elecRatio > 1.5) {
+        advice += "💡 用电量偏高，建议：<br>";
+        if (month >= 5 && month <= 9) {
+            advice += "- 夏季空调设置26℃，离开时及时关闭，避免空耗<br>";
+        } else if (month <= 2) {
+            advice += "- 冬季优先使用毛毯保暖，减少电暖器使用时长<br>";
+        } else {
+            advice += "- 离开宿舍时关闭所有非必要电器（电脑、台灯等）<br>";
+        }
+    } else if (elecRatio > 1) {
+        advice += "💡 用电量略高，建议：<br>";
+        advice += "- 手机/电脑充满电后及时拔掉充电器<br>";
+        advice += "- 避免同时使用多个大功率设备（如吹风机+热水壶）<br>";
     }
-    // 冬季（1-2月）用电高→取暖建议
-    else if (dormData.electricity > avgElectricity && month <= 2) {
-        advice += "1. 优先使用毛毯代替电暖器，每小时节电1.5度；<br>";
-        advice += "2. 多人集中取暖，减少单个设备使用；<br>";
-    }
-    // 用水高→个性化建议
-    if (dormData.water > avgWater) {
-        advice += "3. 集中清洗衣物，避免流水洗漱，每月可节水3吨；<br>";
-        advice += "4. 检查宿舍水龙头是否漏水（滴漏每天耗水约0.5吨）；<br>";
+
+    // 2. 用水分级建议
+    if (waterRatio > 2) {
+        advice += "<br>⚠️ 用水量远超平均水平，疑似存在水管漏水或长时间流水，建议立即检查水龙头/淋浴喷头！<br>";
+    } else if (waterRatio > 1.5) {
+        advice += "<br>💧 用水量偏高，建议：<br>";
+        advice += "- 集中清洗衣物，避免流水洗衣/洗漱<br>";
+        advice += "- 刷牙/洗脸时关闭水龙头，避免长流水<br>";
+    } else if (waterRatio > 1) {
+        advice += "<br>💧 用水量略高，建议：<br>";
+        advice += "- 检查是否有滴水现象（滴漏每天可耗水0.5吨）<br>";
+        advice += "- 洗澡时尽量缩短时间，避免长时间淋浴<br>";
     }
 
     return advice || "✅ 节能习惯优秀，继续保持！";
@@ -282,7 +294,7 @@ function switchTab(tabName) {
     }
 }
 
-// 保存数据（已整合AI功能）
+// 保存数据
 function saveData() {
     const dormitory = document.getElementById('dormitory').value;
     const electricity = parseFloat(document.getElementById('electricity').value);
@@ -304,15 +316,12 @@ function saveData() {
 
     updateDataList();
     updateDormSelect();
-    // 清空输入框
     document.getElementById('dormitory').value = '';
     document.getElementById('electricity').value = '';
     document.getElementById('water').value = '';
 
-    // ========== 调用AI功能（核心修改点） ==========
     const aiAbnormalAlert = aiDetectAbnormal(data);
     const aiAdvice = aiGenerateAdvice(data);
-    // 弹出AI检测结果+建议
     alert(`数据提交成功！
 
 【AI能耗异常检测】
@@ -354,13 +363,23 @@ function updateDormSelect() {
     });
 }
 
-// 渲染能耗图表
+// ========== 优化后：兼容空数据的图表渲染 ==========
 function renderChart() {
     const ctx = document.getElementById('energyChart').getContext('2d');
     
     const labels = energyData.map(item => item.dormitory);
     const electricityData = energyData.map(item => item.electricity);
     const waterData = energyData.map(item => item.water);
+
+    // 空数据时显示提示
+    if (labels.length === 0) {
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ctx.font = "16px 微软雅黑";
+        ctx.fillStyle = "#666";
+        ctx.textAlign = "center";
+        ctx.fillText("暂无能耗数据，请先录入数据", ctx.canvas.width / 2, ctx.canvas.height / 2);
+        return;
+    }
 
     if (window.energyChartInstance) {
         window.energyChartInstance.destroy();
@@ -421,7 +440,7 @@ function renderChart() {
     });
 }
 
-// 显示节能提醒（已整合AI建议）
+// 显示节能提醒
 function showAlert() {
     const dorm = document.getElementById('checkDorm').value;
     const alertBox = document.getElementById('alertBox');
@@ -441,7 +460,6 @@ function showAlert() {
     let alertText = '';
     let alertType = 'success';
 
-    // 原有提醒+AI个性化建议
     if (dormData.electricity > avgElectricity) {
         alertText += `⚠️ 本月用电量${dormData.electricity}度，超过校园平均水平（${avgElectricity}度）<br>【AI节能建议】：<br>${aiGenerateAdvice(dormData)}<br><br>`;
         alertType = 'warning';
