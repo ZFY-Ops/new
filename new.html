@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>校园水电能耗统计平台</title>
+    <!-- 引入图表库（无需本地安装，直接调用） -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "微软雅黑", sans-serif;
+        }
+        body {
+            background-color: #f5f7fa;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 24px;
+        }
+        .tab-container {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 16px;
+            color: #666;
+            position: relative;
+        }
+        .tab.active {
+            color: #2196F3;
+            font-weight: bold;
+        }
+        .tab.active::after {
+            content: "";
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background-color: #2196F3;
+        }
+        .content {
+            display: none;
+        }
+        .content.active {
+            display: block;
+        }
+        /* 数据录入样式 */
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        button {
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #1976D2;
+        }
+        /* 图表展示样式 */
+        .chart-box {
+            margin-top: 20px;
+            height: 400px;
+        }
+        /* 节能提醒样式 */
+        .alert-box {
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+            display: none;
+        }
+        .alert-warning {
+            background-color: #fff3e0;
+            border-left: 4px solid #FF9800;
+            color: #e65100;
+            display: block;
+        }
+        .alert-success {
+            background-color: #e8f5e9;
+            border-left: 4px solid #4CAF50;
+            color: #2e7d32;
+            display: block;
+        }
+        /* 数据列表样式 */
+        .data-list {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .list-header {
+            display: flex;
+            background-color: #f5f5f5;
+            padding: 10px;
+            font-weight: bold;
+        }
+        .list-item {
+            display: flex;
+            padding: 10px;
+            border-top: 1px solid #eee;
+        }
+        .col {
+            flex: 1;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>校园水电能耗统计与低碳管理平台</h1>
+        
+        <!-- 标签页 -->
+        <div class="tab-container">
+            <button class="tab active" onclick="switchTab('input')">数据录入</button>
+            <button class="tab" onclick="switchTab('chart')">能耗图表</button>
+            <button class="tab" onclick="switchTab('alert')">节能提醒</button>
+        </div>
+
+        <!-- 数据录入模块 -->
+        <div class="content active" id="input">
+            <div class="form-group">
+                <label for="dormitory">宿舍编号</label>
+                <input type="text" id="dormitory" placeholder="例如：1号楼302">
+            </div>
+            <div class="form-group">
+                <label for="electricity">本月用电量（度）</label>
+                <input type="number" id="electricity" placeholder="请输入数值" min="0">
+            </div>
+            <div class="form-group">
+                <label for="water">本月用水量（吨）</label>
+                <input type="number" id="water" placeholder="请输入数值" min="0">
+            </div>
+            <div class="form-group">
+                <label for="month">统计月份</label>
+                <select id="month">
+                    <option value="1">1月</option>
+                    <option value="2">2月</option>
+                    <option value="3">3月</option>
+                    <option value="4">4月</option>
+                    <option value="5">5月</option>
+                    <option value="6">6月</option>
+                </select>
+            </div>
+            <button onclick="saveData()">提交数据</button>
+
+            <!-- 已提交数据列表 -->
+            <div class="data-list" id="dataList" style="margin-top: 30px;">
+                <div class="list-header">
+                    <div class="col">宿舍编号</div>
+                    <div class="col">用电量（度）</div>
+                    <div class="col">用水量（吨）</div>
+                    <div class="col">统计月份</div>
+                </div>
+                <div id="listContent"></div>
+            </div>
+        </div>
+
+        <!-- 图表展示模块 -->
+        <div class="content" id="chart">
+            <div class="chart-box">
+                <canvas id="energyChart"></canvas>
+            </div>
+        </div>
+
+        <!-- 节能提醒模块 -->
+        <div class="content" id="alert">
+            <div class="form-group">
+                <label for="checkDorm">选择宿舍查看节能提醒</label>
+                <select id="checkDorm" onchange="showAlert()">
+                    <option value="">请选择宿舍</option>
+                </select>
+            </div>
+            <div class="alert-box" id="alertBox"></div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量存储数据
+let energyData = [];
+// 平均能耗参考值（可根据校园实际情况调整）
+const avgElectricity = 50; // 每月平均用电量
+const avgWater = 8;       // 每月平均用水量
+
+// ========== 新增AI功能：能耗异常检测 ==========
+function aiDetectAbnormal(dormData) {
+    // 至少有2条数据才做AI分析（避免单条数据无意义）
+    if (energyData.length < 2) {
+        return "✅ 数据量不足，暂未启动AI异常检测（需录入≥2个宿舍数据）";
+    }
+
+    // AI步骤1：计算所有宿舍用电量的均值和标准差（统计学异常检测）
+    let totalElectricity = 0;
+    energyData.forEach(item => totalElectricity += item.electricity);
+    const avg = totalElectricity / energyData.length;
+
+    // AI步骤2：计算标准差（衡量数据离散程度）
+    let variance = 0;
+    energyData.forEach(item => variance += Math.pow(item.electricity - avg, 2));
+    const std = Math.sqrt(variance / energyData.length);
+
+    // AI步骤3：判定异常（＞均值+1.5倍标准差=异常浪费）
+    if (dormData.electricity > avg + 1.5 * std) {
+        return `⚠️ AI检测到【${dormData.dormitory}】用电量异常！
+        该宿舍用电量（${dormData.electricity}度）远超同楼栋90%宿舍，
+        疑似忘关空调/大功率设备，建议立即核查！`;
+    } else {
+        return `✅ AI检测：【${dormData.dormitory}】用电量正常（均值：${avg.toFixed(1)}度）`;
+    }
+}
+
+// ========== 新增AI功能：个性化节能建议 ==========
+function aiGenerateAdvice(dormData) {
+    let advice = "";
+    // AI根据季节+能耗生成个性化建议
+    const month = parseInt(dormData.month);
+    
+    // 夏季（5-9月）用电高→空调节能建议
+    if (dormData.electricity > avgElectricity && month >= 5 && month <= 9) {
+        advice += "1. 夏季空调设置26℃，每天可节电2度；<br>";
+        advice += "2. 离开宿舍10分钟以上关闭空调，避免空耗；<br>";
+    }
+    // 冬季（1-2月）用电高→取暖建议
+    else if (dormData.electricity > avgElectricity && month <= 2) {
+        advice += "1. 优先使用毛毯代替电暖器，每小时节电1.5度；<br>";
+        advice += "2. 多人集中取暖，减少单个设备使用；<br>";
+    }
+    // 用水高→个性化建议
+    if (dormData.water > avgWater) {
+        advice += "3. 集中清洗衣物，避免流水洗漱，每月可节水3吨；<br>";
+        advice += "4. 检查宿舍水龙头是否漏水（滴漏每天耗水约0.5吨）；<br>";
+    }
+
+    return advice || "✅ 节能习惯优秀，继续保持！";
+}
+
+// 切换标签页
+function switchTab(tabName) {
+    document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+    document.querySelectorAll('.content').forEach(content => content.classList.remove('active'));
+    document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`).classList.add('active');
+    document.getElementById(tabName).classList.add('active');
+    
+    if (tabName === 'chart') {
+        renderChart();
+    }
+}
+
+// 保存数据（已整合AI功能）
+function saveData() {
+    const dormitory = document.getElementById('dormitory').value;
+    const electricity = parseFloat(document.getElementById('electricity').value);
+    const water = parseFloat(document.getElementById('water').value);
+    const month = document.getElementById('month').value;
+
+    if (!dormitory || isNaN(electricity) || isNaN(water)) {
+        alert('请填写完整且有效的数据！');
+        return;
+    }
+
+    const data = {
+        dormitory: dormitory,
+        electricity: electricity,
+        water: water,
+        month: month
+    };
+    energyData.push(data);
+
+    updateDataList();
+    updateDormSelect();
+    // 清空输入框
+    document.getElementById('dormitory').value = '';
+    document.getElementById('electricity').value = '';
+    document.getElementById('water').value = '';
+
+    // ========== 调用AI功能（核心修改点） ==========
+    const aiAbnormalAlert = aiDetectAbnormal(data);
+    const aiAdvice = aiGenerateAdvice(data);
+    // 弹出AI检测结果+建议
+    alert(`数据提交成功！
+
+【AI能耗异常检测】
+${aiAbnormalAlert}
+
+【AI个性化节能建议】
+${aiAdvice}`);
+}
+
+// 更新数据列表
+function updateDataList() {
+    const listContent = document.getElementById('listContent');
+    listContent.innerHTML = '';
+    
+    energyData.forEach(item => {
+        const listItem = document.createElement('div');
+        listItem.className = 'list-item';
+        listItem.innerHTML = `
+            <div class="col">${item.dormitory}</div>
+            <div class="col">${item.electricity}</div>
+            <div class="col">${item.water}</div>
+            <div class="col">${item.month}月</div>
+        `;
+        listContent.appendChild(listItem);
+    });
+}
+
+// 更新宿舍下拉框
+function updateDormSelect() {
+    const checkDorm = document.getElementById('checkDorm');
+    const dormSet = new Set(energyData.map(item => item.dormitory));
+    checkDorm.innerHTML = '<option value="">请选择宿舍</option>';
+    
+    dormSet.forEach(dorm => {
+        const option = document.createElement('option');
+        option.value = dorm;
+        option.textContent = dorm;
+        checkDorm.appendChild(option);
+    });
+}
+
+// 渲染能耗图表
+function renderChart() {
+    const ctx = document.getElementById('energyChart').getContext('2d');
+    
+    const labels = energyData.map(item => item.dormitory);
+    const electricityData = energyData.map(item => item.electricity);
+    const waterData = energyData.map(item => item.water);
+
+    if (window.energyChartInstance) {
+        window.energyChartInstance.destroy();
+    }
+
+    window.energyChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: '用电量（度）',
+                    data: electricityData,
+                    backgroundColor: 'rgba(255, 99, 132, 0.6)',
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: '用水量（吨）',
+                    data: waterData,
+                    backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: '能耗数值'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: '宿舍编号'
+                    }
+                }
+            },
+            plugins: {
+                title: {
+                    display: true,
+                    text: '校园宿舍水电能耗统计',
+                    font: {
+                        size: 18
+                    }
+                },
+                legend: {
+                    position: 'top'
+                }
+            }
+        }
+    });
+}
+
+// 显示节能提醒（已整合AI建议）
+function showAlert() {
+    const dorm = document.getElementById('checkDorm').value;
+    const alertBox = document.getElementById('alertBox');
+    
+    if (!dorm) {
+        alertBox.style.display = 'none';
+        return;
+    }
+
+    const dormData = energyData.find(item => item.dormitory === dorm);
+    if (!dormData) {
+        alertBox.innerHTML = '暂无该宿舍能耗数据！';
+        alertBox.className = 'alert-box alert-warning';
+        return;
+    }
+
+    let alertText = '';
+    let alertType = 'success';
+
+    // 原有提醒+AI个性化建议
+    if (dormData.electricity > avgElectricity) {
+        alertText += `⚠️ 本月用电量${dormData.electricity}度，超过校园平均水平（${avgElectricity}度）<br>【AI节能建议】：<br>${aiGenerateAdvice(dormData)}<br><br>`;
+        alertType = 'warning';
+    } else {
+        alertText += `✅ 本月用电量${dormData.electricity}度，低于校园平均水平，继续保持！<br><br>`;
+    }
+
+    if (dormData.water > avgWater) {
+        alertText += `⚠️ 本月用水量${dormData.water}吨，超过校园平均水平（${avgWater}吨）<br>【AI节能建议】：<br>${aiGenerateAdvice(dormData)}`;
+        alertType = 'warning';
+    } else {
+        alertText += `✅ 本月用水量${dormData.water}吨，低于校园平均水平，继续保持！`;
+    }
+
+    alertBox.innerHTML = alertText;
+    alertBox.className = `alert-box alert-${alertType}`;
+}
+    </script>
+</body>
+</html>
